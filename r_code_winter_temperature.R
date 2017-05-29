@@ -1,16 +1,18 @@
 # clear memory
 rm(list = ls())
 
-#load required packages 
+# load required packages 
 library(raster)
 library(lubridate)
 library(plyr)
-library(RcppRoll)
-library(rworldmap)
+library(ggplot2)
 
 # working directory
 setwd("G:/NeuAll/Research_projects/winter_temperature")
 
+# function
+source("R/timeline.R")
+source("R/winter_temperature.R")
 
 # years of interest
 start_year_sub <- 1950
@@ -27,77 +29,50 @@ temp_sub_2 <- stack(unlist(temp_sub))
 # read shape of Germany
 ger_shape_r <- getData('GADM', country="DEU", level=1)
 
-# crop rasterby shape
-dfdfLLL <- crop(temp_sub_2, ger_shape_r)
+# crop raster by shape
+temp_crop <- crop(temp_sub_2, ger_shape_r)
 
 # transform raster to matrix
-gdg2 <- getValues(dfdfLLL)
+gdg2 <- getValues(temp_crop)
 
 # loop through cells
-ee <- timeline(start_year_sub,end_year_sub)
+timesteps <- timeline(start_year_sub,
+               end_year_sub)
 
 # winter month Freiburg
-freiburg_temp <- as.numeric(extract(dfdfLLL, cbind(7.843,
-                                                   48.016))) 
+freiburg_coordinates <- cbind(7.843,
+                              48.016)
+heidelberg_coordinates <- cbind(8.652,
+                              49.411)
 
-freiburg_temp_dat <- data.frame(dates = ee,
-                                month = month(ee),
-                                year = year(ee),
-                                temp = freiburg_temp)
-freiburg_temp_winter <- subset(freiburg_temp_dat, 
-                               month %in% c(12, 1))
-freiburg_temp_winter$newyear <- ifelse(freiburg_temp_winter$month == 12, 
-                                       freiburg_temp_winter$year + 1,
-                                       freiburg_temp_winter$year)
-freiburg_temp_winter_sub <- subset(freiburg_temp_winter, month %in% c(12, 1))
+# extract data
+freiburg_res <- winter_temp(temp_dataset = temp_crop,
+                  xy = freiburg_coordinates,
+                  timeline_vec = timesteps)
+heidelberg_res <- winter_temp(temp_dataset = temp_crop,
+                             xy = heidelberg_coordinates,
+                             timeline_vec = timesteps)
 
-AA_frei <- vector()
-for(i in 10:1){
-  AA_frei[i] <- mean(subset(freiburg_temp_winter_sub, year > (2017-i-29) & year < 2017-i)$temp)
-}
-
-# Heidelberg
-heidelberg_temp <- as.numeric(extract(dfdfLLL, cbind(8.652,
-                                                     49.411))) 
-heidelberg_temp_dat <- data.frame(dates = ee,
-                                  month = month(ee),
-                                  year = year(ee),
-                                  temp = heidelberg_temp)
-heidelberg_temp_winter <- subset(heidelberg_temp_dat, month %in% c(12, 1))
-heidelberg_temp_winter$newyear <- ifelse(heidelberg_temp_winter$month == 12, 
-                                         heidelberg_temp_winter$year + 1,
-                                         heidelberg_temp_winter$year)
-heidelberg_temp_winter_sub <- subset(heidelberg_temp_winter, month %in% c(12, 1))
-
-AA_heid <- vector()
-for(i in 10:1){
-  AA_heid[i] <- mean(subset(heidelberg_temp_winter_sub, year > (2017-i-29) & year < 2017-i)$temp)
-}
-
-# mean temp
-mean.winter.temp <- data.frame(parameter = "mean winter temp", rbind(cbind(city = "Freiburg", ddply(freiburg_temp_winter_sub, .(newyear), 
+# mean temp data file
+mean.winter.temp <- data.frame(parameter = "mean winter temp", rbind(cbind(city = "Freiburg", ddply(freiburg_res, .(newyear), 
                                                                                                     summarize, mean = mean(temp))),
-                                                                     cbind(city = "Heidelberg", ddply(heidelberg_temp_winter_sub, .(newyear), 
+                                                                     cbind(city = "Heidelberg", ddply(heidelberg_res, .(newyear), 
                                                                                                       summarize, mean = mean(temp)))))
 
-# n day below zero
-n.day.below.zero <- data.frame(parameter = "n day below zero", rbind(cbind(city = "Freiburg", ddply(freiburg_temp_winter_sub, .(newyear), 
+# n day below zero data file
+n.day.below.zero <- data.frame(parameter = "n day below zero", rbind(cbind(city = "Freiburg", ddply(freiburg_res, .(newyear), 
                                                                                                     summarize, mean = sum(temp<0))),
-                                                                     cbind(city = "Heidelberg", ddply(heidelberg_temp_winter_sub, .(newyear), 
+                                                                     cbind(city = "Heidelberg", ddply(heidelberg_res, .(newyear), 
                                                                                                       summarize, mean = sum(temp<0)))))
+
+# merge mean temp data file & n day below zero data file
 temp.both <- rbind(mean.winter.temp, n.day.below.zero)
+
+# subset last 10 years
 temp.both.sub <- subset(temp.both, 
                         newyear > 2006 & newyear < 2017)
 
-temp.both.sub2 <- data.frame(parameter = "deviation",      city = c(rep("Freiburg", 10),
-                                                                    rep("Heidelberg", 10)) ,
-                             newyear  =c(seq(2007, 2016, 1),
-                                         seq(2007, 2016, 1)) ,
-                             mean = temp.both.sub$mean[1:20]-c(AA_frei, AA_heid))
-
-
-library(ggplot2)
-png(file = "ij.png",
+png(file = "figs/mean_winter_temp_subset.png",
     width = 6, height = 3, units = 'in', res = 500)
 ggplot(subset(temp.both.sub, parameter == "mean winter temp"), 
        aes(newyear, mean)) + 
@@ -109,7 +84,7 @@ ggplot(subset(temp.both.sub, parameter == "mean winter temp"),
   theme_bw()
 dev.off()
 
-png(file = "ij2.png",
+png(file = "figs/number_of_days_below_zero_sub.png",
     width = 6, height = 3, units = 'in', res = 500)
 ggplot(subset(temp.both.sub, parameter == "n day below zero"), 
        aes(newyear, mean)) + 
@@ -121,7 +96,7 @@ ggplot(subset(temp.both.sub, parameter == "n day below zero"),
   theme_bw()
 dev.off()
 
-png(file = "ij_full.png",
+png(file = "figs/mean_winter_temp_all.png",
     width = 6, height = 3, units = 'in', res = 500)
 ggplot(subset(temp.both, parameter == "mean winter temp"), 
        aes(newyear, mean)) + 
@@ -133,7 +108,7 @@ ggplot(subset(temp.both, parameter == "mean winter temp"),
   theme_bw()
 dev.off()
 
-png(file = "ij2_full.png",
+png(file = "figs/number_of_days_below_zero_all.png",
     width = 6, height = 3, units = 'in', res = 500)
 ggplot(subset(temp.both, parameter == "n day below zero"), 
        aes(newyear, mean)) + 
@@ -145,13 +120,35 @@ ggplot(subset(temp.both, parameter == "n day below zero"),
   theme_bw()
 dev.off()
 
-png(file = "ij_3.png",
+
+# deviation from  30-year mean  (Dec/Jan)
+
+# calculate mean winter temperature over the last 30 years for Freiburg
+AA_frei <- vector()
+for(i in 10:1){
+  AA_frei[i] <- mean(subset(freiburg_res, year > (2017-i-29) & year < 2017-i)$temp)
+}
+
+# calculate mean winter temperature over the last 30 years for Heidelberg
+AA_heid <- vector()
+for(i in 10:1){
+  AA_heid[i] <- mean(subset(heidelberg_res, year > (2017-i-29) & year < 2017-i)$temp)
+}
+
+# merge data
+temp.both.sub2 <- data.frame(parameter = "deviation",      city = c(rep("Freiburg", 10),
+                                                                    rep("Heidelberg", 10)) ,
+                             newyear  =c(seq(2007, 2016, 1),
+                                         seq(2007, 2016, 1)) ,
+                             mean = temp.both.sub$mean[1:20]-c(AA_frei, AA_heid))
+
+png(file = "figs/deviation_from_30_year_mean.png",
     width = 6, height = 3, units = 'in', res = 500)
 ggplot(temp.both.sub2, 
        aes(newyear, mean)) + 
   geom_bar(stat = "identity") + 
   xlab("year") +
-  ylab(" deviation from  30-year mean  (Dec/Jan)") +
+  ylab("deviation from  30-year mean  (Dec/Jan)") +
   facet_wrap(~ city , scales = "free_y") +
   theme_bw()
 dev.off()
