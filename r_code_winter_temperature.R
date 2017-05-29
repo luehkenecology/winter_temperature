@@ -19,25 +19,21 @@ end_year_sub  <- 2016
 # load temperature data
 temp_sub <- lapply(start_year_sub:end_year_sub, function(i) stack(paste("G:/NeuAll/Research_projects/Extract_E_OBS_gridded_dataset/output/tg_0.25deg_reg_v14.0_europe_", 
                                                                         i, ".grd", sep = "")))
-temp_sub <- lapply(start_year_sub:end_year_sub, function(i) stack(paste("C:/Users/RenkeLuehken/Google Drive/Research_projects/Extract_E_OBS_gridded_dataset/output/tg_0.25deg_reg_v14.0_europe_", 
-                                                                        i, ".grd", sep = "")))
 
+
+# stack the rasters for each year
 temp_sub_2 <- stack(unlist(temp_sub))  
 
-ger_shape_r <- raster::getData('GADM', country="DEU", level=1)
+# read shape of Germany
+ger_shape_r <- getData('GADM', country="DEU", level=1)
 
-# crop raster
+# crop rasterby shape
 dfdfLLL <- crop(temp_sub_2, ger_shape_r)
-#dfdfLLL <- crop(temp_sub_2, c(-11, 41, 36, 60))
 
-#---------- raster to matrix
+# transform raster to matrix
 gdg2 <- getValues(dfdfLLL)
 
-#---------- loop through cells
-
-# parameter
-
-
+# loop through cells
 ee <- timeline(start_year_sub,end_year_sub)
 
 # winter month Freiburg
