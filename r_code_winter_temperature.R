@@ -53,6 +53,12 @@ heidelberg_res <- winter_temp(temp_dataset = temp_crop,
                              xy = heidelberg_coordinates,
                              timeline_vec = timesteps)
 
+# min temp data file
+min.winter.temp <- data.frame(parameter = "min winter temp", rbind(cbind(city = "Freiburg", ddply(freiburg_res, .(newyear), 
+                                                                                                    summarize, mean =  sum(temp[temp<0]))),
+                                                                     cbind(city = "Heidelberg", ddply(heidelberg_res, .(newyear), 
+                                                                                                      summarize, mean = sum(temp[temp<0])))))
+
 # mean temp data file
 mean.winter.temp <- data.frame(parameter = "mean winter temp", rbind(cbind(city = "Freiburg", ddply(freiburg_res, .(newyear), 
                                                                                                     summarize, mean = mean(temp))),
@@ -66,11 +72,35 @@ n.day.below.zero <- data.frame(parameter = "n day below zero", rbind(cbind(city 
                                                                                                       summarize, mean = sum(temp<0)))))
 
 # merge mean temp data file & n day below zero data file
-temp.both <- rbind(mean.winter.temp, n.day.below.zero)
+temp.both <- rbind(min.winter.temp, mean.winter.temp, n.day.below.zero)
 
 # subset last 10 years
 temp.both.sub <- subset(temp.both, 
                         newyear > 2006 & newyear < 2017)
+
+png(file = "figs/min_winter_temp_subset.png",
+    width = 6, height = 3, units = 'in', res = 500)
+ggplot(subset(temp.both.sub, parameter == "min winter temp"), 
+       aes(newyear, mean)) + 
+  geom_line() + 
+  xlab("year") +
+  ylab("sum of negative temperatures (Dec/Jan)") +
+  geom_smooth(method = "lm", se = T) +
+  facet_wrap(~ city , scales = "free_y") +
+  theme_bw()
+dev.off()
+
+png(file = "figs/min_winter_temp_all.png",
+    width = 6, height = 3, units = 'in', res = 500)
+ggplot(subset(temp.both, parameter == "min winter temp"), 
+       aes(newyear, mean)) + 
+  geom_line() + 
+  xlab("year") +
+  ylab("sum of negative temperatures (Dec/Jan)") +
+  geom_smooth(method = "lm", se = T) +
+  facet_wrap(~ city , scales = "free_y") +
+  theme_bw()
+dev.off()
 
 png(file = "figs/mean_winter_temp_subset.png",
     width = 6, height = 3, units = 'in', res = 500)
@@ -124,30 +154,46 @@ dev.off()
 # deviation from  30-year mean  (Dec/Jan)
 
 # calculate mean winter temperature over the last 30 years for Freiburg
+
 AA_frei <- vector()
-for(i in 10:1){
+for(i in 37:1){
   AA_frei[i] <- mean(subset(freiburg_res, year > (2017-i-29) & year < 2017-i)$temp)
 }
 
 # calculate mean winter temperature over the last 30 years for Heidelberg
 AA_heid <- vector()
-for(i in 10:1){
+for(i in 37:1){
   AA_heid[i] <- mean(subset(heidelberg_res, year > (2017-i-29) & year < 2017-i)$temp)
 }
 
 # merge data
-temp.both.sub2 <- data.frame(parameter = "deviation",      city = c(rep("Freiburg", 10),
-                                                                    rep("Heidelberg", 10)) ,
-                             newyear  =c(seq(2007, 2016, 1),
-                                         seq(2007, 2016, 1)) ,
-                             mean = temp.both.sub$mean[1:20]-c(AA_frei, AA_heid))
+temp.both.sub2 <- data.frame(city = c(rep("Freiburg", 37),
+                                                                    rep("Heidelberg", 37)) ,
+                             newyear  =c(seq(1980, 2016, 1),
+                                         seq(1980, 2016, 1)) ,
+                             mean = c(AA_frei, AA_heid))
 
-png(file = "figs/deviation_from_30_year_mean.png",
+OO <- merge(mean.winter.temp, temp.both.sub2, by = c("city", "newyear"))
+OO$deviation <- OO$mean.x - OO$mean.y
+
+png(file = "figs/deviation_from_30_year_mean_sub.png",
     width = 6, height = 3, units = 'in', res = 500)
-ggplot(temp.both.sub2, 
-       aes(newyear, mean)) + 
+ggplot(subset(OO, newyear > 2006), 
+       aes(newyear, deviation)) + 
   geom_bar(stat = "identity") + 
   xlab("year") +
+  ylab("deviation from  30-year mean  (Dec/Jan)") +
+  facet_wrap(~ city , scales = "free_y") +
+  theme_bw()
+dev.off()
+
+png(file = "figs/deviation_from_30_year_mean_all.png",
+    width = 6, height = 3, units = 'in', res = 500)
+ggplot(OO, 
+       aes(newyear, deviation)) + 
+  geom_bar(stat = "identity") + 
+  xlab("year") +
+  geom_smooth(method = "lm", se = T) +
   ylab("deviation from  30-year mean  (Dec/Jan)") +
   facet_wrap(~ city , scales = "free_y") +
   theme_bw()
